@@ -1,27 +1,30 @@
 package com.esoxjem.movieguide.network;
 
-import android.util.Log;
-
-import com.squareup.okhttp.OkHttpClient;
-import com.squareup.okhttp.Request;
-import com.squareup.okhttp.Response;
-
 import java.io.IOException;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class RequestHandler
 {
-    public static String request(Request request) throws IOException
-    {
-        Log.i("HTTP", request.method() + " : " + request.urlString());
-        OkHttpClient httpClient = HttpClientFactory.getClient();
-        Response response = httpClient.newCall(request).execute();
-        String body = response.body().string();
-        Log.i("HTTP", response.code() + " : " + body);
+    private OkHttpClient okHttpClient;
 
-        if(response.isSuccessful())
+    public RequestHandler(OkHttpClient okHttpClient)
+    {
+        this.okHttpClient = okHttpClient;
+    }
+
+    public String request(Request request) throws IOException
+    {
+        Response response = okHttpClient.newCall(request).execute();
+        String body = response.body().string();
+
+        if (response.isSuccessful())
         {
             return body;
-        } else {
+        } else
+        {
             throw new RuntimeException(response.message());
         }
     }

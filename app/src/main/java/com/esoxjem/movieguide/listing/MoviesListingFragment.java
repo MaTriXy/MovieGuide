@@ -4,6 +4,7 @@ package com.esoxjem.movieguide.listing;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
@@ -12,24 +13,31 @@ import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 
+import com.esoxjem.movieguide.BaseApplication;
+import com.esoxjem.movieguide.Movie;
 import com.esoxjem.movieguide.R;
-import com.esoxjem.movieguide.entities.Movie;
-import com.esoxjem.movieguide.sorting.SortingDialogFragment;
+import com.esoxjem.movieguide.listing.sorting.SortingDialogFragment;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import rx.Subscription;
+import javax.inject.Inject;
 
-public class MoviesListingFragment extends Fragment implements IMoviesListingView
+import butterknife.Bind;
+import butterknife.ButterKnife;
+
+public class MoviesListingFragment extends Fragment implements MoviesListingView
 {
-    private RecyclerView.Adapter mAdapter;
-    private List<Movie> mMovies = new ArrayList<>(20);
-    private MoviesListingPresenter mMoviesPresenter;
-    private Subscription mMoviesSubscription;
-    private Callback mCallback;
+    @Inject
+    MoviesListingPresenter moviesPresenter;
+
+    @Bind(R.id.movies_listing)
+    RecyclerView moviesListing;
+
+    private RecyclerView.Adapter adapter;
+    private List<Movie> movies = new ArrayList<>(20);
+    private Callback callback;
 
     public MoviesListingFragment()
     {
@@ -40,22 +48,24 @@ public class MoviesListingFragment extends Fragment implements IMoviesListingVie
     public void onAttach(Context context)
     {
         super.onAttach(context);
-        mCallback = (Callback) context;
+        callback = (Callback) context;
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
-        mMoviesPresenter = new MoviesListingPresenter(this);
         setHasOptionsMenu(true);
+        setRetainInstance(true);
+        ((BaseApplication) getActivity().getApplication()).createListingComponent().inject(this);
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
     {
         View rootView = inflater.inflate(R.layout.fragment_movies, container, false);
-        initLayoutReferences(rootView);
+        ButterKnife.bind(this, rootView);
+        initLayoutReferences();
         return rootView;
     }
 
@@ -63,7 +73,7 @@ public class MoviesListingFragment extends Fragment implements IMoviesListingVie
     public void onViewCreated(View view, Bundle savedInstanceState)
     {
         super.onViewCreated(view, savedInstanceState);
-        mMoviesSubscription = mMoviesPresenter.displayMovies();
+        moviesPresenter.setView(this);
     }
 
     @Override
@@ -80,13 +90,12 @@ public class MoviesListingFragment extends Fragment implements IMoviesListingVie
 
     private void displaySortingOptions()
     {
-        DialogFragment sortingDialogFragment = SortingDialogFragment.newInstance(mMoviesPresenter);
+        DialogFragment sortingDialogFragment = SortingDialogFragment.newInstance(moviesPresenter);
         sortingDialogFragment.show(getFragmentManager(), "Select Quantity");
     }
 
-    private void initLayoutReferences(View rootView)
+    private void initLayoutReferences()
     {
-        RecyclerView moviesListing = (RecyclerView) rootView.findViewById(R.id.movies_listing);
         moviesListing.setHasFixedSize(true);
 
         int columns;
@@ -100,58 +109,64 @@ public class MoviesListingFragment extends Fragment implements IMoviesListingVie
         RecyclerView.LayoutManager layoutManager = new GridLayoutManager(getActivity(), columns);
 
         moviesListing.setLayoutManager(layoutManager);
-        mAdapter = new MoviesListingAdapter(mMovies, this);
-        moviesListing.setAdapter(mAdapter);
+        adapter = new MoviesListingAdapter(movies, this);
+        moviesListing.setAdapter(adapter);
     }
 
     @Override
     public void showMovies(List<Movie> movies)
     {
-        mMovies.clear();
-        mMovies.addAll(movies);
-        mAdapter.notifyDataSetChanged();
-        mCallback.onMoviesLoaded(movies.get(0));
+        this.movies.clear();
+        this.movies.addAll(movies);
+        moviesListing.setVisibility(View.VISIBLE);
+        adapter.notifyDataSetChanged();
+        callback.onMoviesLoaded(movies.get(0));
     }
 
     @Override
     public void loadingStarted()
     {
-        Toast.makeText(getContext(), R.string.loading_movies, Toast.LENGTH_LONG).show();
+        Snackbar.make(moviesListing, R.string.loading_movies, Snackbar.LENGTH_SHORT).show();
     }
 
     @Override
     public void loadingFailed(String errorMessage)
     {
-        Toast.makeText(getContext(), errorMessage, Toast.LENGTH_LONG).show();
+        Snackbar.make(moviesListing, errorMessage, Snackbar.LENGTH_INDEFINITE).show();
     }
 
     @Override
     public void onMovieClicked(Movie movie)
     {
-        mCallback.onMovieClicked(movie);
+        callback.onMovieClicked(movie);
     }
 
     @Override
     public void onDestroyView()
     {
-        if (mMoviesSubscription != null && !mMoviesSubscription.isUnsubscribed())
-        {
-            mMoviesSubscription.unsubscribe();
-        }
-
         super.onDestroyView();
+        moviesPresenter.destroy();
+        ButterKnife.unbind(this);
     }
 
     @Override
     public void onDetach()
     {
-        mCallback = null;
+        callback = null;
         super.onDetach();
+    }
+
+    @Override
+    public void onDestroy()
+    {
+        super.onDestroy();
+        ((BaseApplication) getActivity().getApplication()).releaseListingComponent();
     }
 
     public interface Callback
     {
         void onMoviesLoaded(Movie movie);
+
         void onMovieClicked(Movie movie);
     }
 }
