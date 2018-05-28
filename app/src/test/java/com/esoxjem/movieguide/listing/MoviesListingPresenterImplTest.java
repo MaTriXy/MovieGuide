@@ -1,7 +1,7 @@
 package com.esoxjem.movieguide.listing;
 
 import com.esoxjem.movieguide.Movie;
-import com.esoxjem.movieguide.util.RxSchedulersOverrideRule;
+import com.esoxjem.movieguide.RxSchedulerRule;
 
 import org.junit.After;
 import org.junit.Before;
@@ -9,65 +9,54 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.robolectric.RobolectricTestRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import rx.Observable;
-import rx.observers.TestSubscriber;
-import rx.schedulers.TestScheduler;
+import io.reactivex.Observable;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * @author arunsasidharan
  */
-@RunWith(RobolectricTestRunner.class)
-public class MoviesListingPresenterImplTest
-{
+@RunWith(MockitoJUnitRunner.class)
+public class MoviesListingPresenterImplTest {
+    @Rule
+    public RxSchedulerRule rule = new RxSchedulerRule();
     @Mock
     private MoviesListingInteractor interactor;
     @Mock
     private MoviesListingView view;
-    @Mock
-    Throwable throwable;
-    @Mock
-    private List<Movie> movies;
 
-    @Rule
-    public RxSchedulersOverrideRule rxSchedulersOverrideRule = new RxSchedulersOverrideRule();
+    private List<Movie> movies = new ArrayList<>(0);
 
     private MoviesListingPresenterImpl presenter;
 
     @Before
-    public void setUp() throws Exception
-    {
-        MockitoAnnotations.initMocks(this);
+    public void setUp() throws Exception {
         presenter = new MoviesListingPresenterImpl(interactor);
     }
 
     @After
-    public void teardown()
-    {
+    public void teardown() {
         presenter.destroy();
     }
 
     @Test
-    public void shouldBeAbleToDisplayMovies()
-    {
-        TestScheduler testScheduler = new TestScheduler();
-        TestSubscriber<List<Movie>> testSubscriber = new TestSubscriber<>();
-        Observable<List<Movie>> responseObservable = Observable.just(movies).subscribeOn(testScheduler);
-        responseObservable.subscribe(testSubscriber);
-        when(interactor.fetchMovies()).thenReturn(responseObservable);
+    public void shouldBeAbleToDisplayMovies() {
+        // given:
+        Observable<List<Movie>> responseObservable = Observable.just(movies);
+        when(interactor.fetchMovies(anyInt())).thenReturn(responseObservable);
 
+        // when:
         presenter.setView(view);
-        testScheduler.triggerActions();
 
-        testSubscriber.assertNoErrors();
-        testSubscriber.onCompleted();
+        // then:
         verify(view).showMovies(movies);
     }
 }

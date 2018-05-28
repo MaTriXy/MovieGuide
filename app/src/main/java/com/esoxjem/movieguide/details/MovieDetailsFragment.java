@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.CollapsingToolbarLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
@@ -21,55 +22,58 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.request.RequestOptions;
+import com.esoxjem.movieguide.Api;
 import com.esoxjem.movieguide.BaseApplication;
 import com.esoxjem.movieguide.Constants;
 import com.esoxjem.movieguide.Movie;
 import com.esoxjem.movieguide.R;
 import com.esoxjem.movieguide.Review;
 import com.esoxjem.movieguide.Video;
-import com.squareup.picasso.Picasso;
 
 import java.util.List;
 
 import javax.inject.Inject;
 
-import butterknife.Bind;
+import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
+import butterknife.Unbinder;
 
 public class MovieDetailsFragment extends Fragment implements MovieDetailsView, View.OnClickListener
 {
     @Inject
     MovieDetailsPresenter movieDetailsPresenter;
 
-    @Bind(R.id.movie_poster)
+    @BindView(R.id.movie_poster)
     ImageView poster;
-    @Bind(R.id.collapsing_toolbar)
+    @BindView(R.id.collapsing_toolbar)
     CollapsingToolbarLayout collapsingToolbar;
-    @Bind(R.id.movie_name)
+    @BindView(R.id.movie_name)
     TextView title;
-    @Bind(R.id.movie_year)
+    @BindView(R.id.movie_year)
     TextView releaseDate;
-    @Bind(R.id.movie_rating)
+    @BindView(R.id.movie_rating)
     TextView rating;
-    @Bind(R.id.movie_description)
+    @BindView(R.id.movie_description)
     TextView overview;
-    @Bind(R.id.trailers_label)
+    @BindView(R.id.trailers_label)
     TextView label;
-    @Bind(R.id.trailers)
+    @BindView(R.id.trailers)
     LinearLayout trailers;
-    @Bind(R.id.trailers_container)
+    @BindView(R.id.trailers_container)
     HorizontalScrollView horizontalScrollView;
-    @Bind(R.id.reviews_label)
+    @BindView(R.id.reviews_label)
     TextView reviews;
-    @Bind(R.id.reviews)
+    @BindView(R.id.reviews)
     LinearLayout reviewsContainer;
-    @Bind(R.id.favorite)
+    @BindView(R.id.favorite)
     FloatingActionButton favorite;
-    @Bind(R.id.toolbar)
-    Toolbar toolbar;
+    @BindView(R.id.toolbar)
+    @Nullable Toolbar toolbar;
 
     private Movie movie;
+    private Unbinder unbinder;
 
     public MovieDetailsFragment()
     {
@@ -98,7 +102,7 @@ public class MovieDetailsFragment extends Fragment implements MovieDetailsView, 
                              Bundle savedInstanceState)
     {
         View rootView = inflater.inflate(R.layout.fragment_movie_details, container, false);
-        ButterKnife.bind(this, rootView);
+        unbinder = ButterKnife.bind(this, rootView);
         setToolbar();
         return rootView;
     }
@@ -146,7 +150,7 @@ public class MovieDetailsFragment extends Fragment implements MovieDetailsView, 
     @Override
     public void showDetails(Movie movie)
     {
-        Glide.with(getContext()).load(movie.getBackdropPath()).into(poster);
+        Glide.with(getContext()).load(Api.getBackdropPath(movie.getBackdropPath())).into(poster);
         title.setText(movie.getTitle());
         releaseDate.setText(String.format(getString(R.string.release_date), movie.getReleaseDate()));
         rating.setText(String.format(getString(R.string.rating), String.valueOf(movie.getVoteAverage())));
@@ -172,19 +176,21 @@ public class MovieDetailsFragment extends Fragment implements MovieDetailsView, 
 
             this.trailers.removeAllViews();
             LayoutInflater inflater = getActivity().getLayoutInflater();
-            Picasso picasso = Picasso.with(getContext());
+            RequestOptions options = new RequestOptions()
+                    .placeholder(R.color.colorPrimary)
+                    .centerCrop()
+                    .override(150, 150);
+
             for (Video trailer : trailers)
             {
                 View thumbContainer = inflater.inflate(R.layout.video, this.trailers, false);
                 ImageView thumbView = ButterKnife.findById(thumbContainer, R.id.video_thumb);
-                thumbView.setTag(Video.getUrl(trailer));
+                thumbView.setTag(R.id.glide_tag, Video.getUrl(trailer));
                 thumbView.requestLayout();
                 thumbView.setOnClickListener(this);
-                picasso
+                Glide.with(getContext())
                         .load(Video.getThumbnailUrl(trailer))
-                        .resizeDimen(R.dimen.video_width, R.dimen.video_height)
-                        .centerCrop()
-                        .placeholder(R.color.colorPrimary)
+                        .apply(options)
                         .into(thumbView);
                 this.trailers.addView(thumbContainer);
             }
@@ -265,7 +271,7 @@ public class MovieDetailsFragment extends Fragment implements MovieDetailsView, 
 
     private void onThumbnailClick(View view)
     {
-        String videoUrl = (String) view.getTag();
+        String videoUrl = (String) view.getTag(R.id.glide_tag);
         Intent playVideoIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl));
         startActivity(playVideoIntent);
     }
@@ -280,7 +286,7 @@ public class MovieDetailsFragment extends Fragment implements MovieDetailsView, 
     {
         super.onDestroyView();
         movieDetailsPresenter.destroy();
-        ButterKnife.unbind(this);
+        unbinder.unbind();
     }
 
     @Override
